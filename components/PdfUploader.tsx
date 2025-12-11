@@ -1,6 +1,13 @@
 "use client";
 
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Button } from "./ui/button";
 import {
@@ -12,8 +19,9 @@ import {
 } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-
-const MAX_SIZE_MB = 20;
+import { usePdfLoader, MAX_SIZE_MB } from "@/hooks/usePdfLoader";
+import { useAnnotationsStore } from "@/stores/annotationsStore";
+import { AnnotationItem } from "./AnnotationItem";
 
 // Configura el worker de PDF.js para que funcione en el navegador.
 // Usamos import.meta.url para que Next sirva el worker en local sin depender de un CDN.
@@ -23,48 +31,166 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 export function PdfUploader() {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    file,
+    error,
+    numPages,
+    isLoading,
+    previewUrl,
+    handleFileChange,
+    handleLoadSuccess,
+    handleLoadError,
+    handleLoadProgress,
+  } = usePdfLoader();
+  const {
+    items,
+    activeTool,
+    addText,
+    stopTool,
+    moveText,
+    updateText,
+    updateAnnotation,
+  } = useAnnotationsStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draggingRef = useRef<{
+    id: string;
+    page: number;
+  } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pageHeights, setPageHeights] = useState<Record<number, number>>({});
 
-  const previewUrl = useMemo(() => {
-    if (!file) return null;
-    return URL.createObjectURL(file);
-  }, [file]);
-
-  useEffect(() => {
-    if (!previewUrl) return undefined;
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
-
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0];
-    if (!nextFile) return;
-
-    if (nextFile.type !== "application/pdf") {
-      setError("Solo se permiten archivos PDF.");
-      setFile(null);
-      return;
+  const annotationsByPage = useMemo(() => {
+    const map = new Map<number, typeof items>();
+    for (const ann of items) {
+      const list = map.get(ann.page) ?? [];
+      list.push(ann);
+      map.set(ann.page, list);
     }
+    return map;
+  }, [items]);
 
-    if (nextFile.size > MAX_SIZE_MB * 1024 * 1024) {
-      setError(`El archivo supera ${MAX_SIZE_MB}MB.`);
-      setFile(null);
-      return;
-    }
+  const registerPageHeight = useCallback(
+    (pageIndex: number, el: HTMLDivElement | null) => {
+      if (!el) return;
+      const h = el.clientHeight;
+      setPageHeights((prev) => {
+        if (prev[pageIndex] === h) return prev;
+        return { ...prev, [pageIndex]: h };
+      });
+    },
+    []
+  );
 
-    setError(null);
-    setIsLoading(true);
-    setFile(nextFile);
-  };
+  const handlePageClick = useCallback(
+    (pageIndex: number) => (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (activeTool !== "text") {
+        setSelectedId(null);
+        return;
+      }
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = Math.min(
+        Math.max((event.clientX - rect.left) / rect.width, 0),
+        1
+      );
+      const y = Math.min(
+        Math.max((event.clientY - rect.top) / rect.height, 0),
+        1
+      );
 
-  const handleLoadSuccess = ({ numPages: pages }: { numPages: number }) => {
-    setNumPages(pages);
-    setIsLoading(false);
-  };
+      console.log("=== CLICK DEBUG ===", {
+        clientX: event.clientX,
+        "rect.left": rect.left,
+        "rect.width": rect.width,
+        "x (normalized)": x,
+        "x * rect.width (px)": x * rect.width,
+      });
+
+      const text = window.prompt("Texto a insertar:");
+      if (!text) {
+        stopTool();
+        return;
+      }
+      const id = addText({
+        page: pageIndex + 1,
+        x,
+        y,
+        text,
+        color: "#111111",
+        fontSize: 14,
+        fontFamily: "Inter, system-ui, sans-serif",
+        displayWidth: rect.width, // ← DEBE SER rect.width (794), NO pageWidth (842)
+        displayHeight: rect.height, // ← DEBE SER rect.height, NO pageHeights
+      });
+      setSelectedId(id);
+      stopTool();
+    },
+    [activeTool, addText, stopTool]
+  );
+
+  const handleAnnotationPointerDown = useCallback(
+    (annPage: number, annId: string) =>
+      (event: ReactPointerEvent<HTMLSpanElement>) => {
+        event.stopPropagation();
+        draggingRef.current = { id: annId, page: annPage };
+        (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      },
+    []
+  );
+
+  const handleAnnotationPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLSpanElement>) => {
+      event.stopPropagation();
+      if (
+        event.currentTarget.hasPointerCapture &&
+        event.currentTarget.hasPointerCapture(event.pointerId)
+      ) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      draggingRef.current = null;
+    },
+    []
+  );
+
+  const handleAnnotationDoubleClick = useCallback(
+    (annId: string) => (event: ReactMouseEvent<HTMLSpanElement>) => {
+      event.stopPropagation();
+      const text = window.prompt("Editar texto:");
+      if (text != null && text !== "") {
+        updateText(annId, text);
+        setSelectedId(annId);
+      }
+    },
+    [updateText]
+  );
+
+  const handlePagePointerMove = useCallback(
+    (pageIndex: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current) return;
+      if (draggingRef.current.page !== pageIndex + 1) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = Math.min(
+        Math.max((event.clientX - rect.left) / rect.width, 0),
+        1
+      );
+      const y = Math.min(
+        Math.max((event.clientY - rect.top) / rect.height, 0),
+        1
+      );
+      moveText(draggingRef.current.id, { x, y });
+      setSelectedId(draggingRef.current.id);
+    },
+    [moveText]
+  );
+
+  const handlePagePointerUp = useCallback(() => {
+    draggingRef.current = null;
+  }, []);
+
+  const selectedAnnotation = useMemo(
+    () => items.find((ann) => ann.id === selectedId) ?? null,
+    [items, selectedId]
+  );
 
   const pageWidth = containerRef.current?.clientWidth
     ? Math.min(containerRef.current.clientWidth, 900)
@@ -73,18 +199,20 @@ export function PdfUploader() {
   const triggerFileDialog = () => fileInputRef.current?.click();
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6 pt-4">
       <Card className="shadow-lg">
-        <CardHeader className="pb-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-            Carga
-          </p>
-          <CardTitle>Sube un PDF</CardTitle>
-          <CardDescription>
-            Selecciona un archivo para previsualizarlo en el navegador. Nada se
-            envía a servidores.
-          </CardDescription>
-        </CardHeader>
+        {!file && (
+          <CardHeader className="pb-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Carga
+            </p>
+            <CardTitle>Sube un PDF</CardTitle>
+            <CardDescription>
+              Selecciona un archivo para previsualizarlo en el navegador. Nada
+              se envía a servidores.
+            </CardDescription>
+          </CardHeader>
+        )}
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
@@ -128,7 +256,8 @@ export function PdfUploader() {
         </CardHeader>
         <CardContent
           ref={containerRef}
-          className="min-h-[400px] w-full overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 p-4 shadow-inner"
+          className="relative min-h-[400px] w-full overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 p-4 shadow-inner"
+          onClick={() => setSelectedId(null)}
         >
           {!previewUrl ? (
             <div className="flex h-[400px] items-center justify-center px-6 text-center text-sm text-neutral-500">
@@ -142,29 +271,62 @@ export function PdfUploader() {
               <Document
                 file={previewUrl}
                 onLoadSuccess={handleLoadSuccess}
-                onLoadError={(err) => setError(err.message)}
+                onLoadError={handleLoadError}
                 loading={
                   <div className="text-sm text-neutral-500">Cargando...</div>
                 }
-                onSourceError={(err) => setError(err.message)}
-                onLoadProgress={() => setIsLoading(true)}
+                onSourceError={handleLoadError}
+                onLoadProgress={handleLoadProgress}
                 className="flex flex-col gap-6"
               >
-                {Array.from(new Array(numPages), (_, index) => (
-                  <div
-                    key={`page_${index + 1}`}
-                    className="relative overflow-hidden rounded-lg border border-neutral-200 bg-white shadow"
-                  >
-                    <Page
-                      pageNumber={index + 1}
-                      width={pageWidth}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                    />
-                    {/* Aquí puedes superponer un canvas de firma en el futuro */}
-                    <div className="pointer-events-none absolute inset-0 border border-transparent" />
-                  </div>
-                ))}
+                {Array.from(new Array(numPages), (_, index) => {
+                  const pageAnnotations =
+                    annotationsByPage.get(index + 1) ?? [];
+                  return (
+                    <div
+                      key={`page_${index + 1}`}
+                      ref={(el) => registerPageHeight(index + 1, el)}
+                      onClick={handlePageClick(index)}
+                      onPointerMove={handlePagePointerMove(index)}
+                      onPointerUp={handlePagePointerUp}
+                      className="relative overflow-hidden"
+                    >
+                      <Page
+                        pageNumber={index + 1}
+                        width={pageWidth}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                      />
+                      {/* Anotaciones de texto superpuestas */}
+                      {pageAnnotations.map((ann) => {
+                        const isSelected = selectedId === ann.id;
+                        return (
+                          <AnnotationItem
+                            key={ann.id}
+                            annotation={ann}
+                            isSelected={isSelected}
+                            onPointerDown={(a) =>
+                              handleAnnotationPointerDown(a.page, a.id)
+                            }
+                            onPointerUp={handleAnnotationPointerUp}
+                            onDoubleClick={(a) =>
+                              handleAnnotationDoubleClick(a.id)
+                            }
+                            onSelect={setSelectedId}
+                            onChange={updateAnnotation}
+                            onMeasure={(id, box) =>
+                              updateAnnotation(id, {
+                                boxWidth: box.width,
+                                boxHeight: box.height,
+                              })
+                            }
+                          />
+                        );
+                      })}
+                      <div className="pointer-events-none absolute inset-0 border border-transparent" />
+                    </div>
+                  );
+                })}
               </Document>
             </div>
           )}
