@@ -3,6 +3,7 @@ import type { TextAnnotation } from "@/stores/annotationsStore";
 import {
   useLayoutEffect,
   useRef,
+  useState,
   type PointerEvent as ReactPointerEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -12,11 +13,11 @@ type Props = {
   isSelected: boolean;
   onPointerDown: (
     ann: TextAnnotation
-  ) => (event: ReactPointerEvent<HTMLSpanElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLSpanElement>) => void;
+  ) => (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onDoubleClick: (
     ann: TextAnnotation
-  ) => (event: ReactMouseEvent<HTMLSpanElement>) => void;
+  ) => (event: ReactMouseEvent<HTMLDivElement>) => void;
   onSelect: (id: string) => void;
   onChange: (id: string, patch: Partial<TextAnnotation>) => void;
   onClone?: (id: string) => void;
@@ -34,11 +35,17 @@ export function AnnotationItem({
   onClone,
   onMeasure,
 }: Props) {
-  const spanRef = useRef<HTMLSpanElement>(null);
+  const divRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [editorPosition, setEditorPosition] = useState<{
+    top: number;
+    left: number;
+    placement: "above" | "below";
+  }>({ top: 0, left: 0, placement: "above" });
 
   useLayoutEffect(() => {
     if (!onMeasure) return;
-    const el = spanRef.current;
+    const el = divRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     if (
@@ -52,10 +59,153 @@ export function AnnotationItem({
     annotation.boxWidth,
     annotation.fontFamily,
     annotation.fontSize,
+    annotation.lineHeight,
     annotation.text,
     onMeasure,
     annotation.id,
   ]);
+
+  // Calcular posición del editor para evitar que se salga del contenedor
+  useLayoutEffect(() => {
+    if (!isSelected || !divRef.current) {
+      return;
+    }
+
+    // Buscar el contenedor principal (CardContent con overflow-hidden)
+    // Este es el contenedor del cual no queremos que se desborde el editor
+    const findMainContainer = (el: HTMLElement | null): HTMLElement | null => {
+      if (!el) return null;
+      let current: HTMLElement | null = el.parentElement;
+      while (current) {
+        // Buscar el CardContent que tiene overflow-hidden y shadow-inner
+        if (
+          current.classList.contains("relative") &&
+          current.classList.contains("overflow-hidden") &&
+          current.classList.contains("shadow-inner")
+        ) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    };
+
+    const mainContainer = findMainContainer(divRef.current);
+    if (!mainContainer) return;
+
+    // Función para calcular y actualizar la posición usando position: fixed
+    const calculatePosition = () => {
+      if (!divRef.current || !editorRef.current) return;
+
+      const textRect = divRef.current.getBoundingClientRect();
+      const editorRect = editorRef.current.getBoundingClientRect();
+      const containerRect = mainContainer.getBoundingClientRect();
+
+      const editorHeight = editorRect.height || 200;
+      const editorWidth = editorRect.width || 400;
+      const padding = 16; // Padding del contenedor
+      const margin = 8; // Margen entre texto y editor
+
+      // Límites del contenedor (CardContent)
+      const containerTop = containerRect.top + padding;
+      const containerBottom = containerRect.bottom - padding;
+      const containerLeft = containerRect.left + padding;
+      const containerRight = containerRect.right - padding;
+
+      // Calcular espacio disponible
+      const spaceAbove = textRect.top - containerTop;
+      const spaceBelow = containerBottom - textRect.bottom;
+
+      // Decidir si poner arriba o abajo
+      const shouldPlaceAbove =
+        spaceAbove >= editorHeight + margin &&
+        (spaceAbove >= spaceBelow || spaceBelow < editorHeight + margin);
+
+      // Calcular posición vertical (en píxeles desde el top del viewport)
+      let top: number;
+      if (shouldPlaceAbove) {
+        // Colocar arriba del texto
+        top = textRect.top - editorHeight - margin;
+        // Asegurar que no se salga por arriba
+        top = Math.max(containerTop, top);
+      } else {
+        // Colocar abajo del texto
+        top = textRect.bottom + margin;
+        // Asegurar que no se salga por abajo
+        const maxTop = containerBottom - editorHeight;
+        top = Math.min(maxTop, top);
+      }
+
+      // Calcular posición horizontal (centrado en el texto)
+      let left = textRect.left + textRect.width / 2 - editorWidth / 2;
+
+      // Ajustar si se sale por la izquierda
+      if (left < containerLeft) {
+        left = containerLeft;
+      }
+
+      // Ajustar si se sale por la derecha
+      if (left + editorWidth > containerRight) {
+        left = containerRight - editorWidth;
+      }
+
+      // Si el editor es más ancho que el contenedor, centrarlo
+      if (editorWidth > containerRight - containerLeft) {
+        left =
+          containerLeft +
+          (containerRight - containerLeft) / 2 -
+          editorWidth / 2;
+      }
+
+      setEditorPosition({
+        top,
+        left,
+        placement: shouldPlaceAbove ? "above" : "below",
+      });
+    };
+
+    // Ejecutar inmediatamente
+    calculatePosition();
+
+    // Ejecutar después de que el DOM se actualice
+    const timeoutId = setTimeout(calculatePosition, 10);
+
+    // Observar cambios de tamaño del editor y del contenedor
+    let resizeObserver: ResizeObserver | null = null;
+    let containerResizeObserver: ResizeObserver | null = null;
+
+    if (editorRef.current) {
+      resizeObserver = new ResizeObserver(calculatePosition);
+      resizeObserver.observe(editorRef.current);
+    }
+
+    // Observar cambios en el contenedor principal (CardContent)
+    if (mainContainer) {
+      containerResizeObserver = new ResizeObserver(calculatePosition);
+      containerResizeObserver.observe(mainContainer);
+    }
+
+    // Observar scroll del contenedor principal y de la ventana
+    const handleScroll = () => calculatePosition();
+    if (mainContainer) {
+      mainContainer.addEventListener("scroll", handleScroll, {
+        passive: true,
+      });
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver?.disconnect();
+      containerResizeObserver?.disconnect();
+      if (mainContainer) {
+        mainContainer.removeEventListener("scroll", handleScroll);
+      }
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [isSelected, annotation.x, annotation.y, annotation.text]);
 
   return (
     <div
@@ -65,8 +215,8 @@ export function AnnotationItem({
       }}
       className="absolute"
     >
-      <span
-        ref={spanRef}
+      <div
+        ref={divRef}
         onPointerDown={onPointerDown(annotation)}
         onPointerUp={onPointerUp}
         onDoubleClick={onDoubleClick(annotation)}
@@ -74,18 +224,25 @@ export function AnnotationItem({
           e.stopPropagation();
           onSelect(annotation.id);
         }}
-        className="cursor-move rounded bg-transparent"
+        className="cursor-move rounded bg-transparent whitespace-pre-wrap"
         style={{
           color: annotation.color,
           fontSize: `${annotation.fontSize}px`,
           fontFamily: annotation.fontFamily,
+          lineHeight: annotation.lineHeight ?? 1.2,
         }}
       >
         {annotation.text}
-      </span>
+      </div>
       {isSelected && (
         <div
-          className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full pb-2"
+          ref={editorRef}
+          className="fixed pb-2"
+          style={{
+            left: `${editorPosition.left}px`,
+            top: `${editorPosition.top}px`,
+            zIndex: 1000,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <AnnotationEditor

@@ -131,7 +131,7 @@ export function PdfUploader() {
 
   const handleAnnotationPointerDown = useCallback(
     (annPage: number, annId: string) =>
-      (event: ReactPointerEvent<HTMLSpanElement>) => {
+      (event: ReactPointerEvent<HTMLDivElement>) => {
         event.stopPropagation();
         draggingRef.current = { id: annId, page: annPage };
         (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -140,7 +140,7 @@ export function PdfUploader() {
   );
 
   const handleAnnotationPointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLSpanElement>) => {
+    (event: ReactPointerEvent<HTMLDivElement>) => {
       event.stopPropagation();
       if (
         event.currentTarget.hasPointerCapture &&
@@ -154,7 +154,7 @@ export function PdfUploader() {
   );
 
   const handleAnnotationDoubleClick = useCallback(
-    (annId: string) => (event: ReactMouseEvent<HTMLSpanElement>) => {
+    (annId: string) => (event: ReactMouseEvent<HTMLDivElement>) => {
       event.stopPropagation();
       const text = window.prompt("Editar texto:");
       if (text != null && text !== "") {

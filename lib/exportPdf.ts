@@ -98,10 +98,19 @@ export async function exportAnnotatedPdf(
     const baseSize = ann.fontSize ?? 14;
     const size = baseSize * scaleY;
 
-    // Calcular dimensiones del texto
-    const textWidth = font.widthOfTextAtSize(ann.text, size);
+    // Dividir el texto en líneas para manejar saltos de línea
+    const lines = ann.text.split("\n");
+    const lineHeightMultiplier = ann.lineHeight ?? 1.2;
+    const lineHeight = size * lineHeightMultiplier; // Espaciado entre líneas personalizado
+
+    // Calcular dimensiones del texto (usar la línea más ancha)
+    const textWidth = Math.max(
+      ...lines.map((line) => font.widthOfTextAtSize(line, size))
+    );
     const textHeight =
-      ann.boxHeight && ann.boxHeight > 0 ? ann.boxHeight * scaleY : size;
+      ann.boxHeight && ann.boxHeight > 0
+        ? ann.boxHeight * scaleY
+        : lines.length * lineHeight;
 
     // ENFOQUE DIRECTO: ann.x es un porcentaje, aplicarlo directamente al PDF
     // Esto asume que el navegador y el PDF mantienen las mismas proporciones visuales
@@ -110,6 +119,7 @@ export async function exportAnnotatedPdf(
 
     console.log("=== EXPORT DEBUG (DIRECT) ===", {
       text: ann.text,
+      lines: lines.length,
       "ann.x (%)": (ann.x * 100).toFixed(2) + "%",
       "PDF width": width,
       finalX: finalX,
@@ -120,12 +130,22 @@ export async function exportAnnotatedPdf(
     const clampedX = clamp(finalX, 0, width - textWidth);
     const clampedY = clamp(finalY, 0, height - textHeight);
 
-    page.drawText(ann.text, {
-      x: clampedX,
-      y: clampedY,
-      size,
-      font,
-      color: rgb(r / 255, g / 255, b / 255),
+    // Dibujar cada línea por separado
+    lines.forEach((line, index) => {
+      if (line.trim() === "" && index < lines.length - 1) {
+        // Línea vacía, solo avanzar la posición Y
+        return;
+      }
+
+      const lineY = clampedY + (lines.length - 1 - index) * lineHeight;
+
+      page.drawText(line, {
+        x: clampedX,
+        y: lineY,
+        size,
+        font,
+        color: rgb(r / 255, g / 255, b / 255),
+      });
     });
   }
 
