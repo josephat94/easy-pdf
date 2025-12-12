@@ -50,6 +50,7 @@ export function PdfUploader() {
     moveText,
     updateText,
     updateAnnotation,
+    cloneAnnotation,
   } = useAnnotationsStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -314,6 +315,12 @@ export function PdfUploader() {
                             }
                             onSelect={setSelectedId}
                             onChange={updateAnnotation}
+                            onClone={(id) => {
+                              const newId = cloneAnnotation(id);
+                              if (newId) {
+                                setSelectedId(newId);
+                              }
+                            }}
                             onMeasure={(id, box) =>
                               updateAnnotation(id, {
                                 boxWidth: box.width,

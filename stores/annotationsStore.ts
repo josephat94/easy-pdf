@@ -26,10 +26,11 @@ type AnnotationsState = {
   updateText: (id: string, text: string) => void;
   moveText: (id: string, coords: { x: number; y: number }) => void;
   updateAnnotation: (id: string, patch: Partial<TextAnnotation>) => void;
+  cloneAnnotation: (id: string) => string | null;
   clearAll: () => void;
 };
 
-export const useAnnotationsStore = create<AnnotationsState>((set) => ({
+export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
   items: [],
   activeTool: "none",
   startTextPlacement: () => set({ activeTool: "text" }),
@@ -75,5 +76,29 @@ export const useAnnotationsStore = create<AnnotationsState>((set) => ({
         item.id === id ? { ...item, ...patch } : item
       ),
     })),
+  cloneAnnotation: (id) => {
+    const state = get();
+    const annotation = state.items.find((item) => item.id === id);
+    if (!annotation) return null;
+
+    const newId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
+    // Clonar el annotation con una posición ligeramente desplazada
+    const clonedAnnotation: TextAnnotation = {
+      ...annotation,
+      id: newId,
+      x: Math.min(annotation.x + 0.02, 0.98), // Desplazar un poco a la derecha
+      y: Math.min(annotation.y + 0.02, 0.98), // Desplazar un poco hacia abajo
+    };
+
+    set((state) => ({
+      items: [...state.items, clonedAnnotation],
+    }));
+
+    return newId;
+  },
   clearAll: () => set({ items: [], activeTool: "none" }),
 }));

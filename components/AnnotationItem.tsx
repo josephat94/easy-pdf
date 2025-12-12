@@ -19,6 +19,7 @@ type Props = {
   ) => (event: ReactMouseEvent<HTMLSpanElement>) => void;
   onSelect: (id: string) => void;
   onChange: (id: string, patch: Partial<TextAnnotation>) => void;
+  onClone?: (id: string) => void;
   onMeasure?: (id: string, box: { width: number; height: number }) => void;
 };
 
@@ -30,6 +31,7 @@ export function AnnotationItem({
   onDoubleClick,
   onSelect,
   onChange,
+  onClone,
   onMeasure,
 }: Props) {
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -89,6 +91,7 @@ export function AnnotationItem({
           <AnnotationEditor
             annotation={annotation}
             onChange={(patch) => onChange(annotation.id, patch)}
+            onClone={onClone ? () => onClone(annotation.id) : undefined}
           />
         </div>
       )}
