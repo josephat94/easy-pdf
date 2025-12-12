@@ -1,5 +1,6 @@
 import { AnnotationEditor } from "./AnnotationEditor";
 import type { TextAnnotation } from "@/stores/annotationsStore";
+import { AnimatePresence } from "motion/react";
 import {
   useLayoutEffect,
   useRef,
@@ -234,24 +235,27 @@ export function AnnotationItem({
       >
         {annotation.text}
       </div>
-      {isSelected && (
-        <div
-          ref={editorRef}
-          className="fixed pb-2"
-          style={{
-            left: `${editorPosition.left}px`,
-            top: `${editorPosition.top}px`,
-            zIndex: 1000,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <AnnotationEditor
-            annotation={annotation}
-            onChange={(patch) => onChange(annotation.id, patch)}
-            onClone={onClone ? () => onClone(annotation.id) : undefined}
-          />
-        </div>
-      )}
+      <AnimatePresence>
+        {isSelected && (
+          <div
+            key={annotation.id}
+            ref={editorRef}
+            className="fixed pb-2"
+            style={{
+              left: `${editorPosition.left}px`,
+              top: `${editorPosition.top}px`,
+              zIndex: 1000,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AnnotationEditor
+              annotation={annotation}
+              onChange={(patch) => onChange(annotation.id, patch)}
+              onClone={onClone ? () => onClone(annotation.id) : undefined}
+            />
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

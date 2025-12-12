@@ -115,20 +115,34 @@ export async function exportAnnotatedPdf(
     // ENFOQUE DIRECTO: ann.x es un porcentaje, aplicarlo directamente al PDF
     // Esto asume que el navegador y el PDF mantienen las mismas proporciones visuales
     const finalX = ann.x * width;
-    const finalY = height - ann.y * height - textHeight;
+
+    // Calcular la posición Y del TOP del texto en el PDF
+    // ann.y es la posición del top relativo a la altura de la página (0-1)
+    // En PDF, el origen está abajo, así que: height - (ann.y * height) = top del texto
+    const textTopY = height - ann.y * height;
+
+    // drawText usa la línea base del texto, no el top
+    // La línea base de la primera línea está a una distancia del top
+    // Esta distancia es aproximadamente el tamaño de la fuente (ascender)
+    // Para simplificar, usamos el tamaño de fuente como aproximación
+    // La primera línea base debería estar en: textTopY - size (aproximadamente)
+    // Pero considerando que el texto puede tener múltiples líneas, calculamos desde el top
+    const firstLineBaseY = textTopY - size * 0.8; // Ajuste para alinear mejor con el navegador
 
     console.log("=== EXPORT DEBUG (DIRECT) ===", {
       text: ann.text,
       lines: lines.length,
-      "ann.x (%)": (ann.x * 100).toFixed(2) + "%",
-      "PDF width": width,
-      finalX: finalX,
-      "displayWidth era": ann.displayWidth,
+      "ann.y (%)": (ann.y * 100).toFixed(2) + "%",
+      "ann.y * height": (ann.y * height).toFixed(2),
+      textTopY: textTopY.toFixed(2),
+      firstLineBaseY: firstLineBaseY.toFixed(2),
+      textHeight: textHeight.toFixed(2),
+      size: size.toFixed(2),
     });
 
     // Asegurar que el texto no se salga de los límites
     const clampedX = clamp(finalX, 0, width - textWidth);
-    const clampedY = clamp(finalY, 0, height - textHeight);
+    const clampedFirstLineY = clamp(firstLineBaseY, size, height);
 
     // Dibujar cada línea por separado
     lines.forEach((line, index) => {
@@ -137,7 +151,10 @@ export async function exportAnnotatedPdf(
         return;
       }
 
-      const lineY = clampedY + (lines.length - 1 - index) * lineHeight;
+      // Calcular la línea base de cada línea
+      // La primera línea (index 0) está en clampedFirstLineY
+      // Las líneas siguientes están más abajo
+      const lineY = clampedFirstLineY - index * lineHeight;
 
       page.drawText(line, {
         x: clampedX,
