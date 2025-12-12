@@ -102,7 +102,7 @@ export function AnnotationEditor({ annotation, onChange, onClone }: Props) {
               className="whitespace-nowrap"
               title="Clonar este texto"
             >
-              📋 Clonar
+              📋 Duplicar
             </Button>
           </div>
         )}

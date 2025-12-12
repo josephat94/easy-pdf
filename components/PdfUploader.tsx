@@ -7,6 +7,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type DragEvent as ReactDragEvent,
 } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Button } from "./ui/button";
@@ -60,6 +61,7 @@ export function PdfUploader() {
   } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pageHeights, setPageHeights] = useState<Record<number, number>>({});
+  const [isDragging, setIsDragging] = useState(false);
 
   const annotationsByPage = useMemo(() => {
     const map = new Map<number, typeof items>();
@@ -199,22 +201,104 @@ export function PdfUploader() {
 
   const triggerFileDialog = () => fileInputRef.current?.click();
 
+  const handleDragOver = useCallback((e: ReactDragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: ReactDragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const droppedFiles = e.dataTransfer.files;
+      if (droppedFiles && droppedFiles.length > 0) {
+        const droppedFile = droppedFiles[0];
+        // Verificar que sea un PDF
+        if (droppedFile.type === "application/pdf") {
+          // Crear un evento sintético para usar el mismo handler
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(droppedFile);
+          const syntheticEvent = {
+            target: { files: dataTransfer.files },
+          } as React.ChangeEvent<HTMLInputElement>;
+          handleFileChange(syntheticEvent);
+        }
+      }
+    },
+    [handleFileChange]
+  );
+
   return (
     <div className="flex w-full flex-col gap-6 pt-4">
-      <Card className="shadow-lg">
+      <Card
+        className={`shadow-lg transition-all duration-300 relative overflow-hidden p-4 ${
+          isDragging
+            ? "border-2 border-dashed border-blue-500 bg-gradient-to-br from-blue-50/90 to-blue-100/70 shadow-blue-200/50"
+            : "border-2 border-dashed border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {!file && (
-          <CardHeader className="pb-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Carga
-            </p>
-            <CardTitle>Sube un PDF</CardTitle>
-            <CardDescription>
-              Selecciona un archivo para previsualizarlo en el navegador. Nada
-              se envía a servidores.
-            </CardDescription>
-          </CardHeader>
+          <>
+            <CardHeader className="pb-2 relative z-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Carga
+              </p>
+              <CardTitle>Sube un PDF</CardTitle>
+              <CardDescription>
+                {isDragging
+                  ? "Suelta el archivo aquí"
+                  : "Arrastra un archivo o selecciona uno para previsualizarlo en el navegador. Nada se envía a servidores."}
+              </CardDescription>
+            </CardHeader>
+            {isDragging && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                <div className="flex flex-col items-center gap-4 text-blue-600">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-xl animate-pulse"></div>
+                    <svg
+                      className="w-20 h-20 relative animate-bounce"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-blue-700">
+                      Suelta para cargar
+                    </p>
+                    <p className="text-sm text-blue-600/80 mt-1">
+                      El archivo se cargará automáticamente
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
-        <CardContent className="space-y-4">
+        <CardContent
+          className={`space-y-4 relative z-10 transition-opacity duration-300 ${
+            isDragging ? "opacity-30" : ""
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <Label>Archivo</Label>
