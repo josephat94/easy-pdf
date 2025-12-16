@@ -91,22 +91,34 @@ export function PdfUploader() {
         setSelectedId(null);
         return;
       }
-      const rect = event.currentTarget.getBoundingClientRect();
-      const x = Math.min(
-        Math.max((event.clientX - rect.left) / rect.width, 0),
+
+      // Usamos el currentTarget (el div de la página) ya que las anotaciones
+      // se posicionan relativas a este elemento
+      const pageDiv = event.currentTarget;
+      const pageDivRect = pageDiv.getBoundingClientRect();
+
+      // Pero también necesitamos el canvas para saber el tamaño real del PDF renderizado
+      const canvas = pageDiv.querySelector("canvas");
+      const canvasRect = canvas ? canvas.getBoundingClientRect() : pageDivRect;
+
+      // Calculamos las coordenadas relativas al canvas (que es lo que vemos)
+      const canvasX = Math.min(
+        Math.max((event.clientX - canvasRect.left) / canvasRect.width, 0),
         1
       );
-      const y = Math.min(
-        Math.max((event.clientY - rect.top) / rect.height, 0),
+      const canvasY = Math.min(
+        Math.max((event.clientY - canvasRect.top) / canvasRect.height, 0),
         1
       );
 
       console.log("=== CLICK DEBUG ===", {
         clientX: event.clientX,
-        "rect.left": rect.left,
-        "rect.width": rect.width,
-        "x (normalized)": x,
-        "x * rect.width (px)": x * rect.width,
+        "canvas.left": canvasRect.left,
+        "canvas.width": canvasRect.width,
+        "pageDiv.left": pageDivRect.left,
+        "pageDiv.width": pageDivRect.width,
+        "canvasX (normalized)": canvasX,
+        "canvasY (normalized)": canvasY,
       });
 
       const text = window.prompt("Texto a insertar:");
@@ -116,14 +128,14 @@ export function PdfUploader() {
       }
       const id = addText({
         page: pageIndex + 1,
-        x,
-        y,
+        x: canvasX,
+        y: canvasY,
         text,
         color: "#111111",
         fontSize: 14,
         fontFamily: "Inter, system-ui, sans-serif",
-        displayWidth: rect.width, // ← DEBE SER rect.width (794), NO pageWidth (842)
-        displayHeight: rect.height, // ← DEBE SER rect.height, NO pageHeights
+        displayWidth: canvasRect.width, // Ancho del canvas
+        displayHeight: canvasRect.height, // Alto del canvas
       });
       setSelectedId(id);
       stopTool();
@@ -171,13 +183,20 @@ export function PdfUploader() {
     (pageIndex: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!draggingRef.current) return;
       if (draggingRef.current.page !== pageIndex + 1) return;
-      const rect = event.currentTarget.getBoundingClientRect();
+
+      // Usamos el canvas para calcular las coordenadas
+      const pageDiv = event.currentTarget;
+      const canvas = pageDiv.querySelector("canvas");
+      const canvasRect = canvas
+        ? canvas.getBoundingClientRect()
+        : pageDiv.getBoundingClientRect();
+
       const x = Math.min(
-        Math.max((event.clientX - rect.left) / rect.width, 0),
+        Math.max((event.clientX - canvasRect.left) / canvasRect.width, 0),
         1
       );
       const y = Math.min(
-        Math.max((event.clientY - rect.top) / rect.height, 0),
+        Math.max((event.clientY - canvasRect.top) / canvasRect.height, 0),
         1
       );
       moveText(draggingRef.current.id, { x, y });
@@ -371,49 +390,53 @@ export function PdfUploader() {
                     <div
                       key={`page_${index + 1}`}
                       ref={(el) => registerPageHeight(index + 1, el)}
-                      onClick={handlePageClick(index)}
-                      onPointerMove={handlePagePointerMove(index)}
-                      onPointerUp={handlePagePointerUp}
                       className="relative overflow-hidden"
                     >
-                      <Page
-                        pageNumber={index + 1}
-                        width={pageWidth}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                      />
-                      {/* Anotaciones de texto superpuestas */}
-                      {pageAnnotations.map((ann) => {
-                        const isSelected = selectedId === ann.id;
-                        return (
-                          <AnnotationItem
-                            key={ann.id}
-                            annotation={ann}
-                            isSelected={isSelected}
-                            onPointerDown={(a) =>
-                              handleAnnotationPointerDown(a.page, a.id)
-                            }
-                            onPointerUp={handleAnnotationPointerUp}
-                            onDoubleClick={(a) =>
-                              handleAnnotationDoubleClick(a.id)
-                            }
-                            onSelect={setSelectedId}
-                            onChange={updateAnnotation}
-                            onClone={(id) => {
-                              const newId = cloneAnnotation(id);
-                              if (newId) {
-                                setSelectedId(newId);
+                      <div
+                        onClick={handlePageClick(index)}
+                        onPointerMove={handlePagePointerMove(index)}
+                        onPointerUp={handlePagePointerUp}
+                        className="relative inline-block"
+                      >
+                        <Page
+                          pageNumber={index + 1}
+                          width={pageWidth}
+                          renderTextLayer={false}
+                          renderAnnotationLayer={false}
+                        />
+                        {/* Anotaciones de texto superpuestas - ahora relativas al Page/canvas */}
+                        {pageAnnotations.map((ann) => {
+                          const isSelected = selectedId === ann.id;
+                          return (
+                            <AnnotationItem
+                              key={ann.id}
+                              annotation={ann}
+                              isSelected={isSelected}
+                              onPointerDown={(a) =>
+                                handleAnnotationPointerDown(a.page, a.id)
                               }
-                            }}
-                            onMeasure={(id, box) =>
-                              updateAnnotation(id, {
-                                boxWidth: box.width,
-                                boxHeight: box.height,
-                              })
-                            }
-                          />
-                        );
-                      })}
+                              onPointerUp={handleAnnotationPointerUp}
+                              onDoubleClick={(a) =>
+                                handleAnnotationDoubleClick(a.id)
+                              }
+                              onSelect={setSelectedId}
+                              onChange={updateAnnotation}
+                              onClone={(id) => {
+                                const newId = cloneAnnotation(id);
+                                if (newId) {
+                                  setSelectedId(newId);
+                                }
+                              }}
+                              onMeasure={(id, box) =>
+                                updateAnnotation(id, {
+                                  boxWidth: box.width,
+                                  boxHeight: box.height,
+                                })
+                              }
+                            />
+                          );
+                        })}
+                      </div>
                       <div className="pointer-events-none absolute inset-0 border border-transparent" />
                     </div>
                   );

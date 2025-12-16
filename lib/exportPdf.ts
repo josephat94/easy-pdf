@@ -114,6 +114,8 @@ export async function exportAnnotatedPdf(
 
     // ann.x marca el borde IZQUIERDO del contenedor, igual que en el navegador
     // El textAlign actúa DENTRO de ese contenedor
+    // ann.x es relativo (0-1) al ancho del canvas/PDF renderizado
+    // Convertimos a píxeles del PDF: ann.x * width (o equivalente: ann.x * displayWidth * scaleX)
     const containerLeftX = ann.x * width;
 
     // Calcular la posición Y del TOP del texto en el PDF
@@ -134,6 +136,12 @@ export async function exportAnnotatedPdf(
       lines: lines.length,
       "ann.x (%)": (ann.x * 100).toFixed(2) + "%",
       "ann.y (%)": (ann.y * 100).toFixed(2) + "%",
+      "PDF width": width.toFixed(2),
+      "PDF height": height.toFixed(2),
+      displayWidth: displayWidth.toFixed(2),
+      displayHeight: displayHeight.toFixed(2),
+      scaleX: scaleX.toFixed(4),
+      scaleY: scaleY.toFixed(4),
       containerLeftX: containerLeftX.toFixed(2),
       containerWidth: containerWidth.toFixed(2),
       textTopY: textTopY.toFixed(2),
