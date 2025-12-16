@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { type ChangeEvent } from "react";
 import { usePdfStore } from "@/stores/pdfStore";
+import { useAnnotationsStore } from "@/stores/annotationsStore";
 
 export const MAX_SIZE_MB = 20;
 
@@ -16,6 +17,8 @@ export function usePdfLoader() {
     setIsLoading,
     reset,
   } = usePdfStore();
+
+  const { clearAll } = useAnnotationsStore();
 
   const previewUrl = useMemo(() => {
     if (!file) return null;
@@ -47,9 +50,10 @@ export function usePdfLoader() {
       setError(null);
       setIsLoading(true);
       setNumPages(0);
+      clearAll();
       setFile(nextFile);
     },
-    [reset, setError, setFile, setIsLoading, setNumPages]
+    [reset, setError, setFile, setIsLoading, setNumPages, clearAll]
   );
 
   const handleLoadSuccess = useCallback(
