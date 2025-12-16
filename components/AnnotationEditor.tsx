@@ -32,6 +32,87 @@ export function AnnotationEditor({ annotation, onChange, onClone }: Props) {
           cols={30}
           placeholder="Escribe aquí... (Enter para nueva línea)"
         />
+        <div className="flex gap-1 mt-1">
+          <Button
+            variant={
+              annotation.textAlign === "left" || !annotation.textAlign
+                ? "primary"
+                : "outline"
+            }
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ textAlign: "left" });
+            }}
+            className="flex-1"
+            title="Alinear a la izquierda"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="15" y2="12" />
+              <line x1="3" y1="18" x2="18" y2="18" />
+            </svg>
+          </Button>
+          <Button
+            variant={annotation.textAlign === "center" ? "primary" : "outline"}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ textAlign: "center" });
+            }}
+            className="flex-1"
+            title="Centrar"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="6" y1="12" x2="18" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </Button>
+          <Button
+            variant={annotation.textAlign === "right" ? "primary" : "outline"}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ textAlign: "right" });
+            }}
+            className="flex-1"
+            title="Alinear a la derecha"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="9" y1="12" x2="21" y2="12" />
+              <line x1="6" y1="18" x2="21" y2="18" />
+            </svg>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-row gap-3 items-end">

@@ -103,8 +103,8 @@ export async function exportAnnotatedPdf(
     const lineHeightMultiplier = ann.lineHeight ?? 1.2;
     const lineHeight = size * lineHeightMultiplier; // Espaciado entre líneas personalizado
 
-    // Calcular dimensiones del texto (usar la línea más ancha)
-    const textWidth = Math.max(
+    // Calcular dimensiones del texto (usar la línea más ancha para determinar el ancho del "contenedor")
+    const containerWidth = Math.max(
       ...lines.map((line) => font.widthOfTextAtSize(line, size))
     );
     const textHeight =
@@ -112,9 +112,9 @@ export async function exportAnnotatedPdf(
         ? ann.boxHeight * scaleY
         : lines.length * lineHeight;
 
-    // ENFOQUE DIRECTO: ann.x es un porcentaje, aplicarlo directamente al PDF
-    // Esto asume que el navegador y el PDF mantienen las mismas proporciones visuales
-    const finalX = ann.x * width;
+    // ann.x marca el borde IZQUIERDO del contenedor, igual que en el navegador
+    // El textAlign actúa DENTRO de ese contenedor
+    const containerLeftX = ann.x * width;
 
     // Calcular la posición Y del TOP del texto en el PDF
     // ann.y es la posición del top relativo a la altura de la página (0-1)
@@ -132,17 +132,19 @@ export async function exportAnnotatedPdf(
     console.log("=== EXPORT DEBUG (DIRECT) ===", {
       text: ann.text,
       lines: lines.length,
+      "ann.x (%)": (ann.x * 100).toFixed(2) + "%",
       "ann.y (%)": (ann.y * 100).toFixed(2) + "%",
-      "ann.y * height": (ann.y * height).toFixed(2),
+      containerLeftX: containerLeftX.toFixed(2),
+      containerWidth: containerWidth.toFixed(2),
       textTopY: textTopY.toFixed(2),
       firstLineBaseY: firstLineBaseY.toFixed(2),
       textHeight: textHeight.toFixed(2),
       size: size.toFixed(2),
+      textAlign: ann.textAlign ?? "left",
     });
 
-    // Asegurar que el texto no se salga de los límites
-    const clampedX = clamp(finalX, 0, width - textWidth);
     const clampedFirstLineY = clamp(firstLineBaseY, size, height);
+    const textAlign = ann.textAlign ?? "left";
 
     // Dibujar cada línea por separado
     lines.forEach((line, index) => {
@@ -150,6 +152,27 @@ export async function exportAnnotatedPdf(
         // Línea vacía, solo avanzar la posición Y
         return;
       }
+
+      // Calcular el ancho de la línea actual
+      const lineWidth = font.widthOfTextAtSize(line, size);
+
+      // Calcular la posición X de la línea dentro del contenedor virtual
+      // según la alineación (igual que hace CSS con textAlign)
+      let lineX = containerLeftX; // Por defecto (left)
+
+      if (textAlign === "center") {
+        // Centrar la línea dentro del contenedor
+        // containerLeftX + (containerWidth - lineWidth) / 2
+        lineX = containerLeftX + (containerWidth - lineWidth) / 2;
+      } else if (textAlign === "right") {
+        // Alinear a la derecha dentro del contenedor
+        // containerLeftX + (containerWidth - lineWidth)
+        lineX = containerLeftX + (containerWidth - lineWidth);
+      }
+      // Para "left", lineX ya está en containerLeftX
+
+      // Asegurar que el texto no se salga de los límites
+      const clampedX = clamp(lineX, 0, width - lineWidth);
 
       // Calcular la línea base de cada línea
       // La primera línea (index 0) está en clampedFirstLineY

@@ -10,6 +10,7 @@ export type TextAnnotation = {
   fontSize: number;
   fontFamily: string;
   lineHeight?: number; // espaciado entre líneas (múltiplo del fontSize, por defecto 1.2)
+  textAlign?: "left" | "center" | "right"; // alineación del texto (por defecto "left")
   displayWidth?: number; // ancho renderizado de la página cuando se colocó
   boxWidth?: number; // ancho del span en pantalla
   boxHeight?: number; // alto del span en pantalla
@@ -50,6 +51,7 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
           fontSize: annotation.fontSize ?? 14,
           fontFamily: annotation.fontFamily ?? "Inter, system-ui, sans-serif",
           lineHeight: annotation.lineHeight ?? 1.2,
+          textAlign: annotation.textAlign ?? "left",
           displayWidth: annotation.displayWidth,
           boxWidth: annotation.boxWidth,
           boxHeight: annotation.boxHeight,

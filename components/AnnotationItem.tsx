@@ -61,6 +61,7 @@ export function AnnotationItem({
     annotation.fontFamily,
     annotation.fontSize,
     annotation.lineHeight,
+    annotation.textAlign,
     annotation.text,
     onMeasure,
     annotation.id,
@@ -231,6 +232,7 @@ export function AnnotationItem({
           fontSize: `${annotation.fontSize}px`,
           fontFamily: annotation.fontFamily,
           lineHeight: annotation.lineHeight ?? 1.2,
+          textAlign: annotation.textAlign ?? "left",
         }}
       >
         {annotation.text}
