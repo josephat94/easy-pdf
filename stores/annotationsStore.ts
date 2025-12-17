@@ -48,7 +48,7 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
         {
           ...annotation,
           color: annotation.color ?? "#111111",
-          fontSize: annotation.fontSize ?? 14,
+          fontSize: annotation.fontSize ?? 12,
           fontFamily: annotation.fontFamily ?? "Inter, system-ui, sans-serif",
           lineHeight: annotation.lineHeight ?? 1.2,
           textAlign: annotation.textAlign ?? "left",

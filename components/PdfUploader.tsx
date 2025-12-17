@@ -132,7 +132,7 @@ export function PdfUploader() {
         y: canvasY,
         text,
         color: "#111111",
-        fontSize: 14,
+        fontSize: 12,
         fontFamily: "Inter, system-ui, sans-serif",
         displayWidth: canvasRect.width, // Ancho del canvas
         displayHeight: canvasRect.height, // Alto del canvas

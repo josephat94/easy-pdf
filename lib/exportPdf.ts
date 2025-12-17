@@ -95,7 +95,7 @@ export async function exportAnnotatedPdf(
     const scaleX = width / displayWidth;
     const scaleY = height / displayHeight;
 
-    const baseSize = ann.fontSize ?? 14;
+    const baseSize = ann.fontSize ?? 12;
     const size = baseSize * scaleY;
 
     // Dividir el texto en líneas para manejar saltos de línea
