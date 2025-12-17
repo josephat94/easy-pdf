@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useEffect,
   type PointerEvent as ReactPointerEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -66,6 +67,80 @@ export function AnnotationItem({
     onMeasure,
     annotation.id,
   ]);
+
+  // Mover anotación con las flechas del teclado
+  useEffect(() => {
+    if (!isSelected) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Solo procesar si son teclas de flecha
+      if (
+        !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
+      ) {
+        return;
+      }
+
+      // Prevenir el scroll de la página
+      event.preventDefault();
+
+      // Encontrar el contenedor principal para calcular el incremento relativo
+      const findMainContainer = (
+        el: HTMLElement | null
+      ): HTMLElement | null => {
+        if (!el) return null;
+        let current: HTMLElement | null = el.parentElement;
+        while (current) {
+          if (
+            current.classList.contains("relative") &&
+            current.classList.contains("overflow-hidden") &&
+            current.classList.contains("shadow-inner")
+          ) {
+            return current;
+          }
+          current = current.parentElement;
+        }
+        return null;
+      };
+
+      const container = findMainContainer(divRef.current);
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+
+      // Incremento en píxeles (1px normal, 10px con Shift)
+      const pixelIncrement = event.shiftKey ? 10 : 1;
+
+      // Convertir píxeles a porcentaje relativo al contenedor
+      const xIncrement = pixelIncrement / containerRect.width;
+      const yIncrement = pixelIncrement / containerRect.height;
+
+      let newX = annotation.x;
+      let newY = annotation.y;
+
+      switch (event.key) {
+        case "ArrowLeft":
+          newX = Math.max(0, annotation.x - xIncrement);
+          break;
+        case "ArrowRight":
+          newX = Math.min(1, annotation.x + xIncrement);
+          break;
+        case "ArrowUp":
+          newY = Math.max(0, annotation.y - yIncrement);
+          break;
+        case "ArrowDown":
+          newY = Math.min(1, annotation.y + yIncrement);
+          break;
+      }
+
+      onChange(annotation.id, { x: newX, y: newY });
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSelected, annotation.id, annotation.x, annotation.y, onChange]);
 
   // Calcular posición del editor para evitar que se salga del contenedor
   useLayoutEffect(() => {
