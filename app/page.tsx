@@ -12,6 +12,7 @@ import { usePdfStore } from "@/stores/pdfStore";
 import { useAnnotationsStore } from "@/stores/annotationsStore";
 import { Button } from "@/components/ui/button";
 import { exportAnnotatedPdf } from "@/lib/exportPdf";
+import { SignatureSelector } from "@/components/SignatureSelector";
 
 const PdfUploader = dynamic(
   () => import("@/components/PdfUploader").then((m) => m.PdfUploader),
@@ -25,9 +26,10 @@ const PdfUploader = dynamic(
 
 export default function Home() {
   const { file, setError } = usePdfStore();
-  const { items, startTextPlacement, activeTool, clearAll } =
+  const { items, startTextPlacement, startImagePlacement, activeTool, clearAll } =
     useAnnotationsStore();
   const [isExporting, setIsExporting] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
   const handleExport = async () => {
     if (!file) return;
@@ -76,6 +78,15 @@ export default function Home() {
                 {activeTool === "text" ? "Haz clic en el PDF" : "Agregar Texto"}
               </Button>
 
+              <Button
+                variant={activeTool === "image" ? "ghost" : "outline"}
+                onClick={() => setIsSignatureModalOpen(true)}
+              >
+                {activeTool === "image"
+                  ? "Haz clic en el PDF"
+                  : "Agregar Firma"}
+              </Button>
+
               <Button variant="outline" onClick={clearAll}>
                 Limpiar anotaciones
               </Button>
@@ -91,6 +102,14 @@ export default function Home() {
           </CardHeader>
         </Card>
       )}
+
+      <SignatureSelector
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSelect={(imagePath) => {
+          startImagePlacement(imagePath);
+        }}
+      />
     </main>
   );
 }

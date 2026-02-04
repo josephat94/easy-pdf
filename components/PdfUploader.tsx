@@ -23,6 +23,7 @@ import { Label } from "./ui/label";
 import { usePdfLoader, MAX_SIZE_MB } from "@/hooks/usePdfLoader";
 import { useAnnotationsStore } from "@/stores/annotationsStore";
 import { AnnotationItem } from "./AnnotationItem";
+import { ImageAnnotationItem } from "./ImageAnnotationItem";
 
 // Configura el worker de PDF.js para que funcione en el navegador.
 // Usamos import.meta.url para que Next sirva el worker en local sin depender de un CDN.
@@ -46,9 +47,11 @@ export function PdfUploader() {
   const {
     items,
     activeTool,
+    selectedSignature,
     addText,
+    addImage,
     stopTool,
-    moveText,
+    moveAnnotation,
     updateText,
     updateAnnotation,
     cloneAnnotation,
@@ -87,7 +90,7 @@ export function PdfUploader() {
 
   const handlePageClick = useCallback(
     (pageIndex: number) => (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (activeTool !== "text") {
+      if (activeTool === "none") {
         setSelectedId(null);
         return;
       }
@@ -111,36 +114,61 @@ export function PdfUploader() {
         1
       );
 
-      console.log("=== CLICK DEBUG ===", {
-        clientX: event.clientX,
-        "canvas.left": canvasRect.left,
-        "canvas.width": canvasRect.width,
-        "pageDiv.left": pageDivRect.left,
-        "pageDiv.width": pageDivRect.width,
-        "canvasX (normalized)": canvasX,
-        "canvasY (normalized)": canvasY,
-      });
+      if (activeTool === "text") {
+        console.log("=== CLICK DEBUG ===", {
+          clientX: event.clientX,
+          "canvas.left": canvasRect.left,
+          "canvas.width": canvasRect.width,
+          "pageDiv.left": pageDivRect.left,
+          "pageDiv.width": pageDivRect.width,
+          "canvasX (normalized)": canvasX,
+          "canvasY (normalized)": canvasY,
+        });
 
-      const text = window.prompt("Texto a insertar:");
-      if (!text) {
+        const text = window.prompt("Texto a insertar:");
+        if (!text) {
+          stopTool();
+          return;
+        }
+        const id = addText({
+          page: pageIndex + 1,
+          x: canvasX,
+          y: canvasY,
+          text,
+          color: "#111111",
+          fontSize: 12,
+          fontFamily: "Inter, system-ui, sans-serif",
+          displayWidth: canvasRect.width, // Ancho del canvas
+          displayHeight: canvasRect.height, // Alto del canvas
+        });
+        setSelectedId(id);
         stopTool();
-        return;
+      } else if (activeTool === "image" && selectedSignature) {
+        // Cargar la imagen para obtener sus dimensiones
+        const img = new Image();
+        img.onload = () => {
+          // Usar un tamaño por defecto razonable (ej: 150px de ancho)
+          const defaultWidth = 150;
+          const aspectRatio = img.height / img.width;
+          const defaultHeight = defaultWidth * aspectRatio;
+
+          const id = addImage({
+            page: pageIndex + 1,
+            x: canvasX,
+            y: canvasY,
+            imageSrc: selectedSignature,
+            width: defaultWidth,
+            height: defaultHeight,
+            displayWidth: canvasRect.width,
+            displayHeight: canvasRect.height,
+          });
+          setSelectedId(id);
+          stopTool();
+        };
+        img.src = selectedSignature;
       }
-      const id = addText({
-        page: pageIndex + 1,
-        x: canvasX,
-        y: canvasY,
-        text,
-        color: "#111111",
-        fontSize: 12,
-        fontFamily: "Inter, system-ui, sans-serif",
-        displayWidth: canvasRect.width, // Ancho del canvas
-        displayHeight: canvasRect.height, // Alto del canvas
-      });
-      setSelectedId(id);
-      stopTool();
     },
-    [activeTool, addText, stopTool]
+    [activeTool, selectedSignature, addText, addImage, stopTool]
   );
 
   const handleAnnotationPointerDown = useCallback(
@@ -199,10 +227,10 @@ export function PdfUploader() {
         Math.max((event.clientY - canvasRect.top) / canvasRect.height, 0),
         1
       );
-      moveText(draggingRef.current.id, { x, y });
+      moveAnnotation(draggingRef.current.id, { x, y });
       setSelectedId(draggingRef.current.id);
     },
-    [moveText]
+    [moveAnnotation]
   );
 
   const handlePagePointerUp = useCallback(() => {
@@ -404,37 +432,60 @@ export function PdfUploader() {
                           renderTextLayer={false}
                           renderAnnotationLayer={false}
                         />
-                        {/* Anotaciones de texto superpuestas - ahora relativas al Page/canvas */}
+                        {/* Anotaciones superpuestas - ahora relativas al Page/canvas */}
                         {pageAnnotations.map((ann) => {
                           const isSelected = selectedId === ann.id;
-                          return (
-                            <AnnotationItem
-                              key={ann.id}
-                              annotation={ann}
-                              isSelected={isSelected}
-                              onPointerDown={(a) =>
-                                handleAnnotationPointerDown(a.page, a.id)
-                              }
-                              onPointerUp={handleAnnotationPointerUp}
-                              onDoubleClick={(a) =>
-                                handleAnnotationDoubleClick(a.id)
-                              }
-                              onSelect={setSelectedId}
-                              onChange={updateAnnotation}
-                              onClone={(id) => {
-                                const newId = cloneAnnotation(id);
-                                if (newId) {
-                                  setSelectedId(newId);
+                          if (ann.type === "text") {
+                            return (
+                              <AnnotationItem
+                                key={ann.id}
+                                annotation={ann}
+                                isSelected={isSelected}
+                                onPointerDown={(a) =>
+                                  handleAnnotationPointerDown(a.page, a.id)
                                 }
-                              }}
-                              onMeasure={(id, box) =>
-                                updateAnnotation(id, {
-                                  boxWidth: box.width,
-                                  boxHeight: box.height,
-                                })
-                              }
-                            />
-                          );
+                                onPointerUp={handleAnnotationPointerUp}
+                                onDoubleClick={(a) =>
+                                  handleAnnotationDoubleClick(a.id)
+                                }
+                                onSelect={setSelectedId}
+                                onChange={updateAnnotation}
+                                onClone={(id) => {
+                                  const newId = cloneAnnotation(id);
+                                  if (newId) {
+                                    setSelectedId(newId);
+                                  }
+                                }}
+                                onMeasure={(id, box) =>
+                                  updateAnnotation(id, {
+                                    boxWidth: box.width,
+                                    boxHeight: box.height,
+                                  })
+                                }
+                              />
+                            );
+                          } else if (ann.type === "image") {
+                            return (
+                              <ImageAnnotationItem
+                                key={ann.id}
+                                annotation={ann}
+                                isSelected={isSelected}
+                                onPointerDown={(a) =>
+                                  handleAnnotationPointerDown(a.page, a.id)
+                                }
+                                onPointerUp={handleAnnotationPointerUp}
+                                onSelect={setSelectedId}
+                                onChange={updateAnnotation}
+                                onClone={(id) => {
+                                  const newId = cloneAnnotation(id);
+                                  if (newId) {
+                                    setSelectedId(newId);
+                                  }
+                                }}
+                              />
+                            );
+                          }
+                          return null;
                         })}
                       </div>
                       <div className="pointer-events-none absolute inset-0 border border-transparent" />

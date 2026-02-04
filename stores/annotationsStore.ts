@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export type TextAnnotation = {
+  type: "text";
   id: string;
   page: number;
   x: number; // 0-1 relativo al ancho
@@ -17,17 +18,35 @@ export type TextAnnotation = {
   displayHeight?: number; // alto renderizado de la página cuando se colocó
 };
 
-type Tool = "none" | "text";
+export type ImageAnnotation = {
+  type: "image";
+  id: string;
+  page: number;
+  x: number; // 0-1 relativo al ancho
+  y: number; // 0-1 relativo al alto
+  imageSrc: string; // ruta de la imagen (ej: /signs/Brian.png)
+  width: number; // ancho en píxeles del display
+  height: number; // alto en píxeles del display
+  displayWidth?: number; // ancho renderizado de la página cuando se colocó
+  displayHeight?: number; // alto renderizado de la página cuando se colocó
+};
+
+export type Annotation = TextAnnotation | ImageAnnotation;
+
+type Tool = "none" | "text" | "image";
 
 type AnnotationsState = {
-  items: TextAnnotation[];
+  items: Annotation[];
   activeTool: Tool;
+  selectedSignature: string | null; // ruta de la firma seleccionada
   startTextPlacement: () => void;
+  startImagePlacement: (imageSrc: string) => void;
   stopTool: () => void;
-  addText: (annotation: Omit<TextAnnotation, "id">) => string;
+  addText: (annotation: Omit<TextAnnotation, "id" | "type">) => string;
+  addImage: (annotation: Omit<ImageAnnotation, "id" | "type">) => string;
   updateText: (id: string, text: string) => void;
-  moveText: (id: string, coords: { x: number; y: number }) => void;
-  updateAnnotation: (id: string, patch: Partial<TextAnnotation>) => void;
+  moveAnnotation: (id: string, coords: { x: number; y: number }) => void;
+  updateAnnotation: (id: string, patch: Partial<Annotation>) => void;
   cloneAnnotation: (id: string) => string | null;
   clearAll: () => void;
 };
@@ -35,8 +54,11 @@ type AnnotationsState = {
 export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
   items: [],
   activeTool: "none",
+  selectedSignature: null,
   startTextPlacement: () => set({ activeTool: "text" }),
-  stopTool: () => set({ activeTool: "none" }),
+  startImagePlacement: (imageSrc: string) =>
+    set({ activeTool: "image", selectedSignature: imageSrc }),
+  stopTool: () => set({ activeTool: "none", selectedSignature: null }),
   addText: (annotation) => {
     const id =
       typeof crypto !== "undefined" && crypto.randomUUID
@@ -46,6 +68,7 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
       items: [
         ...state.items,
         {
+          type: "text",
           ...annotation,
           color: annotation.color ?? "#111111",
           fontSize: annotation.fontSize ?? 12,
@@ -62,13 +85,32 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
     }));
     return id;
   },
+  addImage: (annotation) => {
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+    set((state) => ({
+      items: [
+        ...state.items,
+        {
+          type: "image",
+          ...annotation,
+          id,
+        },
+      ],
+    }));
+    return id;
+  },
   updateText: (id, text) =>
     set((state) => ({
       items: state.items.map((item) =>
-        item.id === id ? { ...item, text } : item
+        item.id === id && item.type === "text"
+          ? { ...item, text }
+          : item
       ),
     })),
-  moveText: (id, coords) =>
+  moveAnnotation: (id, coords) =>
     set((state) => ({
       items: state.items.map((item) =>
         item.id === id ? { ...item, ...coords } : item
@@ -76,9 +118,11 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
     })),
   updateAnnotation: (id, patch) =>
     set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, ...patch } : item
-      ),
+      items: state.items.map((item) => {
+        if (item.id !== id) return item;
+        // TypeScript necesita ayuda aquí para entender que patch es compatible
+        return { ...item, ...patch } as Annotation;
+      }),
     })),
   cloneAnnotation: (id) => {
     const state = get();
@@ -91,12 +135,22 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
         : `${Date.now()}-${Math.random()}`;
 
     // Clonar el annotation con una posición ligeramente desplazada
-    const clonedAnnotation: TextAnnotation = {
-      ...annotation,
-      id: newId,
-      x: Math.min(annotation.x + 0.02, 0.98), // Desplazar un poco a la derecha
-      y: Math.min(annotation.y + 0.02, 0.98), // Desplazar un poco hacia abajo
-    };
+    let clonedAnnotation: Annotation;
+    if (annotation.type === "text") {
+      clonedAnnotation = {
+        ...annotation,
+        id: newId,
+        x: Math.min(annotation.x + 0.02, 0.98),
+        y: Math.min(annotation.y + 0.02, 0.98),
+      };
+    } else {
+      clonedAnnotation = {
+        ...annotation,
+        id: newId,
+        x: Math.min(annotation.x + 0.02, 0.98),
+        y: Math.min(annotation.y + 0.02, 0.98),
+      };
+    }
 
     set((state) => ({
       items: [...state.items, clonedAnnotation],
@@ -104,5 +158,5 @@ export const useAnnotationsStore = create<AnnotationsState>((set, get) => ({
 
     return newId;
   },
-  clearAll: () => set({ items: [], activeTool: "none" }),
+  clearAll: () => set({ items: [], activeTool: "none", selectedSignature: null }),
 }));

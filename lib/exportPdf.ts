@@ -1,5 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import type { TextAnnotation } from "@/stores/annotationsStore";
+import type { Annotation, TextAnnotation, ImageAnnotation } from "@/stores/annotationsStore";
 
 type RGB = { r: number; g: number; b: number };
 
@@ -33,7 +33,7 @@ const buildDownloadName = (name: string) => {
 
 export async function exportAnnotatedPdf(
   file: File,
-  annotations: TextAnnotation[]
+  annotations: Annotation[]
 ) {
   if (!file) throw new Error("No hay PDF para exportar");
 
@@ -81,11 +81,16 @@ export async function exportAnnotatedPdf(
 
   for (const ann of annotations) {
     const page = pages[ann.page - 1];
-    if (!page || !ann.text) continue;
+    if (!page) continue;
 
     const { width, height } = page.getSize();
-    const { r, g, b } = hexToRgb(ann.color ?? "#111111");
-    const font = fonts[fontKeyFor(ann.fontFamily)] ?? fonts.helvetica;
+
+    // Procesar anotaciones de texto
+    if (ann.type === "text") {
+      if (!ann.text) continue;
+
+      const { r, g, b } = hexToRgb(ann.color ?? "#111111");
+      const font = fonts[fontKeyFor(ann.fontFamily)] ?? fonts.helvetica;
 
     // Usar displayWidth/displayHeight si están disponibles
     const displayWidth = ann.displayWidth || width;
@@ -195,6 +200,68 @@ export async function exportAnnotatedPdf(
         color: rgb(r / 255, g / 255, b / 255),
       });
     });
+    } else if (ann.type === "image") {
+      // Procesar anotaciones de imagen
+      try {
+        // Cargar la imagen desde la ruta pública
+        const imageResponse = await fetch(ann.imageSrc);
+        if (!imageResponse.ok) {
+          console.warn(`No se pudo cargar la imagen: ${ann.imageSrc}`);
+          continue;
+        }
+
+        const imageBytes = await imageResponse.arrayBuffer();
+        let image;
+
+        // Determinar el tipo de imagen por extensión
+        if (ann.imageSrc.toLowerCase().endsWith(".png")) {
+          image = await pdfDoc.embedPng(new Uint8Array(imageBytes));
+        } else if (
+          ann.imageSrc.toLowerCase().endsWith(".jpg") ||
+          ann.imageSrc.toLowerCase().endsWith(".jpeg")
+        ) {
+          image = await pdfDoc.embedJpg(new Uint8Array(imageBytes));
+        } else {
+          console.warn(`Formato de imagen no soportado: ${ann.imageSrc}`);
+          continue;
+        }
+
+        // Usar displayWidth/displayHeight si están disponibles
+        const displayWidth = ann.displayWidth || width;
+        const displayHeight = ann.displayHeight || height;
+
+        // Calcular escalas del navegador al PDF
+        const scaleX = width / displayWidth;
+        const scaleY = height / displayHeight;
+
+        // Escalar las dimensiones de la imagen
+        const imageWidth = ann.width * scaleX;
+        const imageHeight = ann.height * scaleY;
+
+        // Calcular posición en el PDF
+        // ann.x es relativo (0-1) al ancho del canvas/PDF renderizado
+        const imageX = ann.x * width;
+
+        // ann.y es la posición del top relativo a la altura de la página (0-1)
+        // En PDF, el origen está abajo, así que: height - (ann.y * height) = top de la imagen
+        // Pero necesitamos ajustar porque drawImage usa la esquina inferior izquierda
+        const imageTopY = height - ann.y * height;
+        const imageY = imageTopY - imageHeight;
+
+        // Asegurar que la imagen no se salga de los límites
+        const clampedX = clamp(imageX, 0, width - imageWidth);
+        const clampedY = clamp(imageY, 0, height - imageHeight);
+
+        page.drawImage(image, {
+          x: clampedX,
+          y: clampedY,
+          width: imageWidth,
+          height: imageHeight,
+        });
+      } catch (err) {
+        console.error(`Error al procesar imagen ${ann.imageSrc}:`, err);
+      }
+    }
   }
 
   const finalBytes = await pdfDoc.save();
