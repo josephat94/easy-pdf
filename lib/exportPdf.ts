@@ -52,7 +52,7 @@ export async function exportAnnotatedPdf(
   }
 
   const wantsInter = annotations.some(
-    (a) => fontKeyFor(a.fontFamily) === "inter"
+    (a) => a.type === "text" && fontKeyFor(a.fontFamily) === "inter"
   );
 
   const fonts: Record<"helvetica" | "times" | "courier" | "inter", any> = {
