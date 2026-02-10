@@ -16,6 +16,8 @@ const AVAILABLE_SIGNATURES = [
   { name: "Daren", path: "/signs/Daren.png" },
   { name: "Steven", path: "/signs/Steven.png" },
   { name: "Tristan", path: "/signs/Tristan.png" },
+  { name: "William", path: "/signs/William.png" },
+  { name: "Amy", path: "/signs/Amy.png" },
 ];
 
 type Props = {
