@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -12,12 +12,34 @@ import {
 } from "./ui/card";
 
 const AVAILABLE_SIGNATURES = [
-  { name: "Brian", path: "/signs/Brian.png" },
-  { name: "Daren", path: "/signs/Daren.png" },
-  { name: "Steven", path: "/signs/Steven.png" },
-  { name: "Tristan", path: "/signs/Tristan.png" },
-  { name: "William", path: "/signs/William.png" },
-  { name: "Amy", path: "/signs/Amy.png" },
+  {
+    name: "Brian Felicetti",
+    path: "/signs/Brian.png",
+    states: ["New York", "North Carolina"],
+  },
+  {
+    name: "Darren Aponte",
+    path: "/signs/Daren.png",
+    states: ["Florida", "Any Other State"],
+  },
+  // { name: "Steven", path: "/signs/Steven.png" },
+  {
+    name: "Tristan Gillespie",
+    path: "/signs/Tristan.png",
+    states: ["New Jersey", "Texas"],
+  },
+  { name: "William Green", path: "/signs/William.png", states: ["Georgia"] },
+  { name: "Amy", path: "/signs/Amy.png", states: ["Illinois"] },
+  {
+    name: "David Freeman",
+    path: "/signs/david_freeman.png",
+    states: ["Maryland", "Washington D.C"],
+  },
+  {
+    name: "kristopher Amundsen",
+    path: "/signs/kristopher_amundsen.png",
+    states: ["Arizona", "California"],
+  },
 ];
 
 type Props = {
@@ -64,24 +86,31 @@ export function SignatureSelector({ isOpen, onClose, onSelect }: Props) {
                 <div className="grid grid-cols-2 gap-4">
                   {AVAILABLE_SIGNATURES.map((signature) => (
                     <motion.button
-                      key={signature.path}
+                      key={signature.name}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => handleSelect(signature.path)}
                       className="relative group rounded-lg border-2 border-slate-200 hover:border-blue-500 transition-colors overflow-hidden bg-white"
                     >
-                      <div className="aspect-video flex items-center justify-center p-4">
-                        <img
+                      <div className="relative aspect-video p-4">
+                        <Image
                           src={signature.path}
                           alt={signature.name}
-                          className="max-w-full max-h-full object-contain"
+                          fill
+                          unoptimized
+                          sizes="(max-width: 768px) 50vw, 33vw"
+                          className="object-contain p-4"
                         />
                       </div>
                       <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/10 transition-colors" />
                       <div className="p-2 text-center">
-                        <p className="text-sm font-medium text-slate-700">
+                        <p className="text-sm font-bold text-purple-600">
                           {signature.name}
                         </p>
+                      </div>
+                      <div className="p-2 text-center text-black">
+                        {" "}
+                        {signature.states.join(", ")}{" "}
                       </div>
                     </motion.button>
                   ))}
