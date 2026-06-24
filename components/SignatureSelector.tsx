@@ -20,7 +20,7 @@ const AVAILABLE_SIGNATURES = [
   {
     name: "Darren Aponte",
     path: "/signs/Daren.png",
-    states: ["Florida", "Any Other State"],
+    states: ["Florida", "Any Other State", "Maryland", "Washington D.C"],
   },
   // { name: "Steven", path: "/signs/Steven.png" },
   {
@@ -30,11 +30,11 @@ const AVAILABLE_SIGNATURES = [
   },
   { name: "William Green", path: "/signs/William.png", states: ["Georgia"] },
   { name: "Amy", path: "/signs/Amy.png", states: ["Illinois"] },
-  {
+  /*   {
     name: "David Freeman",
     path: "/signs/david_freeman.png",
     states: ["Maryland", "Washington D.C"],
-  },
+  }, */
   {
     name: "kristopher Amundsen",
     path: "/signs/kristopher_amundsen.png",
